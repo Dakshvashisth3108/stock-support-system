@@ -110,7 +110,7 @@ def analyze_stock(ticker: str,
         from universal_model import (load_universal_model,
                                      predict_with_universal_model)
 
-        universal_path = "models/universal_rf.pkl"
+        universal_path = "models/universal_rf_selected.pkl"
         if not os.path.exists(universal_path):
             logger.warning("Universal model not found. Train it first:")
             logger.warning("  python src/universal_model.py")

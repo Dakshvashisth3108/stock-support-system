@@ -1,17 +1,31 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
-import pandas as pd
+import os
+from typing import List
 
 
-from main import analyze_stock, ensure_models_exist 
 
 app = FastAPI()
 
 
+def _get_allowed_origins() -> List[str]:
+    """Determine allowed CORS origins from environment.
+
+    Read `ALLOWED_ORIGINS` (comma-separated) or `FRONTEND_URL`.
+    Fall back to the local dev origin when not set.
+    """
+    raw = os.getenv("ALLOWED_ORIGINS") or os.getenv("FRONTEND_URL")
+    if not raw:
+        return ["http://localhost:5173"]
+    return [o.strip() for o in raw.split(",") if o.strip()]
+
+
+allowed_origins = _get_allowed_origins()
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -19,13 +33,26 @@ app.add_middleware(
 
 @app.on_event("startup")
 def startup_event():
-   
-    ensure_models_exist()
+    # Try to ensure models exist, but don't crash the app at import/startup
+    try:
+        from main import ensure_models_exist
+    except Exception as e:
+        print(f"Startup: could not import ensure_models_exist - {e}")
+        return
+
+    try:
+        ensure_models_exist()
+    except Exception as e:
+        print(f"Startup: ensure_models_exist raised an exception - {e}")
 
 
 @app.get("/api/predict/{ticker}")
 def predict_stock(ticker: str):
-    
+    try:
+        from main import analyze_stock
+    except Exception as e:
+        return {"error": "Server missing dependencies or failed to import analysis code.", "detail": str(e)}
+
     raw_result = analyze_stock(ticker=ticker.upper(), use_universal=True)
     
    
@@ -65,7 +92,7 @@ def get_screener_data():
 
     for ticker in tickers:
         try:
-            
+            from main import analyze_stock
             res = analyze_stock(ticker, use_universal=True)
             screener_results.append({
                 "ticker": res['ticker'],
@@ -82,4 +109,10 @@ def get_screener_data():
 
 
 if __name__ == "__main__":
-    uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=True)
+    port = int(os.getenv("PORT", "8000"))
+    uvicorn.run(
+        "api:app",
+        host="0.0.0.0",
+        port=port,
+        reload=os.getenv("ENV") == "development",
+    )

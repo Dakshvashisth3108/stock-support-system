@@ -6,6 +6,8 @@ import { useState, useMemo, useEffect } from 'react';
 import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, Tooltip as RechartsTooltip, CartesianGrid } from 'recharts';
 import axios from 'axios';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
 function App() {
   const [view, setView] = useState('dashboard'); 
   const [ticker, setTicker] = useState('');
@@ -74,7 +76,7 @@ function App() {
     if (!targetTicker) return;
     setLoading(true); setError(null);
     try {
-      const res = await axios.get(`http://localhost:8000/api/predict/${targetTicker}`);
+      const res = await axios.get(`${API_BASE_URL}/api/predict/${targetTicker}`);
       setData(res.data); setView('dashboard');
     } catch (err) { setError("Backend Unreachable."); }
     setLoading(false);
@@ -83,7 +85,7 @@ function App() {
   const fetchScreener = async () => {
     setLoading(true); setView('screener');
     try {
-      const res = await axios.get(`http://localhost:8000/api/screener`);
+      const res = await axios.get(`${API_BASE_URL}/api/screener`);
       setScreenerData(res.data);
     } catch (err) { setError("Screener failed."); }
     setLoading(false);
