@@ -9,6 +9,129 @@ from typing import List
 app = FastAPI()
 
 
+# --- Ticker Resolution ---
+# Maps common company names and shorthand to Yahoo Finance NSE tickers.
+# Keys should be UPPERCASE.
+TICKER_ALIASES = {
+    # Company names -> NSE tickers
+    "INFOSYS": "INFY.NS",
+    "TATA CONSULTANCY": "TCS.NS",
+    "TATA CONSULTANCY SERVICES": "TCS.NS",
+    "RELIANCE": "RELIANCE.NS",
+    "RELIANCE INDUSTRIES": "RELIANCE.NS",
+    "HDFC BANK": "HDFCBANK.NS",
+    "HDFC": "HDFCBANK.NS",
+    "ICICI BANK": "ICICIBANK.NS",
+    "ICICI": "ICICIBANK.NS",
+    "WIPRO": "WIPRO.NS",
+    "MARUTI": "MARUTI.NS",
+    "MARUTI SUZUKI": "MARUTI.NS",
+    "TATA MOTORS": "TATAMOTORS.NS",
+    "TATAMOTORS": "TATAMOTORS.NS",
+    "TATA STEEL": "TATASTEEL.NS",
+    "TATASTEEL": "TATASTEEL.NS",
+    "SBI": "SBIN.NS",
+    "STATE BANK": "SBIN.NS",
+    "STATE BANK OF INDIA": "SBIN.NS",
+    "SBIN": "SBIN.NS",
+    "AXIS BANK": "AXISBANK.NS",
+    "AXISBANK": "AXISBANK.NS",
+    "KOTAK": "KOTAKBANK.NS",
+    "KOTAK BANK": "KOTAKBANK.NS",
+    "KOTAK MAHINDRA": "KOTAKBANK.NS",
+    "KOTAKBANK": "KOTAKBANK.NS",
+    "BAJAJ FINANCE": "BAJFINANCE.NS",
+    "BAJFINANCE": "BAJFINANCE.NS",
+    "HCL TECH": "HCLTECH.NS",
+    "HCLTECH": "HCLTECH.NS",
+    "HCL": "HCLTECH.NS",
+    "HINDUSTAN UNILEVER": "HINDUNILVR.NS",
+    "HINDUNILVR": "HINDUNILVR.NS",
+    "HUL": "HINDUNILVR.NS",
+    "SUN PHARMA": "SUNPHARMA.NS",
+    "SUNPHARMA": "SUNPHARMA.NS",
+    "TITAN": "TITAN.NS",
+    "TECH MAHINDRA": "TECHM.NS",
+    "TECHM": "TECHM.NS",
+    "ADANI": "ADANIENT.NS",
+    "ADANI ENTERPRISES": "ADANIENT.NS",
+    "ADANIENT": "ADANIENT.NS",
+    "LT": "LT.NS",
+    "LARSEN": "LT.NS",
+    "LARSEN AND TOUBRO": "LT.NS",
+    "BHARTI AIRTEL": "BHARTIARTL.NS",
+    "AIRTEL": "BHARTIARTL.NS",
+    "BHARTIARTL": "BHARTIARTL.NS",
+    "ITC": "ITC.NS",
+    "ASIAN PAINTS": "ASIANPAINT.NS",
+    "ASIANPAINT": "ASIANPAINT.NS",
+    "POWERGRID": "POWERGRID.NS",
+    "NTPC": "NTPC.NS",
+    "ONGC": "ONGC.NS",
+    "COAL INDIA": "COALINDIA.NS",
+    "COALINDIA": "COALINDIA.NS",
+    "ULTRATECH": "ULTRACEMCO.NS",
+    "ULTRACEMCO": "ULTRACEMCO.NS",
+    "BAJAJ AUTO": "BAJAJ-AUTO.NS",
+    "M&M": "M&M.NS",
+    "MAHINDRA": "M&M.NS",
+    "NESTLE": "NESTLEIND.NS",
+    "NESTLEIND": "NESTLEIND.NS",
+    "DIVIS LAB": "DIVISLAB.NS",
+    "DIVISLAB": "DIVISLAB.NS",
+    "DRREDDY": "DRREDDY.NS",
+    "DR REDDY": "DRREDDY.NS",
+    "CIPLA": "CIPLA.NS",
+    "EICHER": "EICHERMOT.NS",
+    "EICHER MOTORS": "EICHERMOT.NS",
+    "EICHERMOT": "EICHERMOT.NS",
+    "GRASIM": "GRASIM.NS",
+    "HEROMOTOCO": "HEROMOTOCO.NS",
+    "HERO": "HEROMOTOCO.NS",
+    "HERO MOTOCORP": "HEROMOTOCO.NS",
+    "HINDALCO": "HINDALCO.NS",
+    "INDUSINDBK": "INDUSINDBK.NS",
+    "INDUSIND BANK": "INDUSINDBK.NS",
+    "JSWSTEEL": "JSWSTEEL.NS",
+    "JSW STEEL": "JSWSTEEL.NS",
+    "TATACONSUM": "TATACONSUM.NS",
+    "TATA CONSUMER": "TATACONSUM.NS",
+    "APOLLOHOSP": "APOLLOHOSP.NS",
+    "APOLLO HOSPITAL": "APOLLOHOSP.NS",
+    "APOLLO": "APOLLOHOSP.NS",
+    "BRITANNIA": "BRITANNIA.NS",
+    "SBILIFE": "SBILIFE.NS",
+    "SBI LIFE": "SBILIFE.NS",
+    "HDFCLIFE": "HDFCLIFE.NS",
+    "HDFC LIFE": "HDFCLIFE.NS",
+    "INFY": "INFY.NS",
+    "TCS": "TCS.NS",
+}
+
+
+def resolve_ticker(raw_input: str) -> str:
+    """
+    Resolve user input to a valid Yahoo Finance NSE ticker.
+
+    Handles:
+      - Company names (e.g. "infosys" -> "INFY.NS")
+      - Bare symbols (e.g. "INFY" -> "INFY.NS")
+      - Already valid tickers (e.g. "INFY.NS" -> "INFY.NS")
+    """
+    cleaned = raw_input.strip().upper()
+
+    # Already has .NS or .BO suffix — return as-is
+    if cleaned.endswith(".NS") or cleaned.endswith(".BO"):
+        return cleaned
+
+    # Check alias map (company names and common shorthand)
+    if cleaned in TICKER_ALIASES:
+        return TICKER_ALIASES[cleaned]
+
+    # Default: assume it's an NSE symbol and append .NS
+    return cleaned + ".NS"
+
+
 def _get_allowed_origins() -> List[str]:
     """Determine allowed CORS origins from environment.
 
@@ -53,7 +176,13 @@ def predict_stock(ticker: str):
     except Exception as e:
         return {"error": "Server missing dependencies or failed to import analysis code.", "detail": str(e)}
 
-    raw_result = analyze_stock(ticker=ticker.upper(), use_universal=True)
+    resolved = resolve_ticker(ticker)
+    try:
+        raw_result = analyze_stock(ticker=resolved, use_universal=True)
+    except ValueError as e:
+        return {"error": f"Could not find data for '{ticker}'. Try using the NSE ticker symbol (e.g., INFY.NS, TCS.NS, RELIANCE.NS).", "detail": str(e)}
+    except Exception as e:
+        return {"error": f"Analysis failed for '{ticker}'.", "detail": str(e)}
     
    
     formatted_prediction = "Bullish" if raw_result['prediction'] == 'UP' else "Bearish"

@@ -77,8 +77,18 @@ function App() {
     setLoading(true); setError(null);
     try {
       const res = await axios.get(`${API_BASE_URL}/api/predict/${targetTicker}`);
-      setData(res.data); setView('dashboard');
-    } catch (err) { setError("Backend Unreachable."); }
+      if (res.data.error) {
+        setError(res.data.error);
+      } else {
+        setData(res.data); setView('dashboard');
+      }
+    } catch (err) {
+      if (err.response && err.response.data && err.response.data.error) {
+        setError(err.response.data.error);
+      } else {
+        setError("Backend Unreachable.");
+      }
+    }
     setLoading(false);
   };
 
