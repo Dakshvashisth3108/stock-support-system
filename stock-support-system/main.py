@@ -8,6 +8,9 @@ import logging
 import joblib
 from sklearn.preprocessing import RobustScaler
 
+# Re-export FastAPI app so Railway's auto-detected "uvicorn main:app" works
+from api import app  # noqa: F401
+
 logging.basicConfig (
     level = logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
